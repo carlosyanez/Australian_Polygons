@@ -23,6 +23,8 @@ melb_lgas_list <- read_html("https://en.wikipedia.org/wiki/Local_government_area
   mutate(ABB_NAME=toupper(LGA))
 
 
+
+
 ## download victorian LGAs
 
 if(!file.exists("VIC_LGA_POLYGON_SHP.shp")){
@@ -60,11 +62,25 @@ vic_suburb_polygon <- readOGR(
 )
 
 aux_polygon<-raster::intersect(melb_boundary,vic_suburb_polygon)
-melb_suburb_polygon <- vic_suburb_polygon %>% filter(NAME %in% aux_polygon@data$NAME)
+melb_suburb_polygon <- vic_suburb_polygon %>% filter(LOC_PID %in% aux_polygon@data$LOC_PID)
+
 
 rm("aux_polygon","vic_suburb_polygon")
 
-#postcodes
+  
+#postal areas from ABS
+ 
+if(!file.exists("POA_2016_AUST.shp")){
+  download.file("https://www.abs.gov.au/ausstats/subscriber.nsf/log?openagent&1270055003_poa_2016_aust_shape.zip&1270.0.55.003&Data%20Cubes&4FB811FA48EECA7ACA25802C001432D0&0&July%202016&13.09.2016&Previous","pc.zip")
+  unzip("pc.zip")
+  file.remove("pc.zip")
+}  
+  
+vic_suburb_polygon <- readOGR( 
+  dsn="./" , 
+  layer="POA_2016_AUST"
+)
+
 
 #state electorates
 
