@@ -9,21 +9,60 @@ pacman::p_load("tidyverse","spdplyr","sp","rgdal","raster","maptools","geojsonio
                "rvest","xml2")
 
 
-## get list of metropolitan area councils
 
-melb_lgas_list <- read_html("https://en.wikipedia.org/wiki/Local_government_areas_of_Victoria#Municipalities_of_Greater_Melbourne") %>%
+
+## get list of  councils across state
+
+regions <- c("Greater Metropolitan Melbourne","Barwon South West","Grampians",
+             "Gippsland","Hume","Loddon Mallee")
+wiki_page <- read_html("https://en.wikipedia.org/wiki/Local_government_areas_of_Victoria")
+
+clean_lga <-function(df){
+  
+  df %>%   mutate(LGA=str_remove(LGA,"City of"),
+                  LGA=str_remove(LGA,"Shire of"),
+                  LGA=str_remove(LGA,"Shire"),
+                  LGA=str_remove(LGA,"Borough of"),
+                  LGA=str_squish(LGA),
+                  LGA=str_trim(LGA))
+}
+
+#table for melbourne is different....
+
+melb_lgas_list <- wiki_page %>%
   html_node(xpath="/html/body/div[3]/div[3]/div[5]/div[1]/table[1]") %>%
   html_table(fill = TRUE) %>% 
-  mutate(LGA=str_remove(`Local government area`,"City of"),
-         LGA=str_remove(LGA,"Shire of"),
-         LGA=str_squish(LGA),
-         LGA=str_trim(LGA)) %>%
-  rename(Population.2018=`Population (2018)[1][2]`) %>%
-  dplyr::select(LGA,Population.2018,Region) %>%
-  mutate(ABB_NAME=toupper(LGA))
+  rename(LGA=`Local government area`,
+         Population=`Population (2018)[1][2]`,
+         Metro.Region=Region) %>%
+  clean_lga() %>%
+  dplyr::select(LGA,Population,Metro.Region) %>%
+  mutate(ABB_NAME=toupper(LGA),
+         State.Region=regions[1])
 
+# other regions
 
+lgas_list <- map_dfr(2:6, function(x,regions,wiki_page){
+  
+  wiki_page %>%
+  html_node(xpath=str_c("/html/body/div[3]/div[3]/div[5]/div[1]/table[",x,"]")) %>%
+  html_table(fill = TRUE) %>% 
+  .[!duplicated(as.list(.))] %>%
+  slice(-1) %>%
+  rename(LGA=`Local government area`) %>%
+  clean_lga() %>%
+  dplyr::select(LGA,Population) %>%
+  mutate(ABB_NAME=toupper(LGA),
+         State.Region=regions[x],
+         Metro.Region="")
+},regions,wiki_page)
 
+# put together and clean up
+
+lgas_list <- rbind(lgas_list,melb_lgas_list)
+rm(regions,melb_lgas_list,wiki_page,clean_lga)
+
+#Download all shapefiles
 
 ## download victorian LGAs
 
@@ -38,13 +77,6 @@ vic_lga_polygon <- readOGR(
   dsn="./" , 
   layer="VIC_LGA_POLYGON_SHP"
 )
-
-##filter non metropolitan councils and create bounding box
-
-melb_lga_polygon <- vic_lga_polygon %>% filter(ABB_NAME %in% melb_lgas_list$ABB_NAME)
-state_pid <- melb_lga_polygon@data$STATE_PID
-melb_boundary <-maptools::unionSpatialPolygons(melb_lga_polygon,state_pid)
-rm("vic_lga_polygon","state_pid")
 
 
 ## get suburb polygons
@@ -61,13 +93,7 @@ vic_suburb_polygon <- readOGR(
   layer="VIC_LOCALITY_POLYGON_SHP"
 )
 
-aux_polygon<-raster::intersect(melb_boundary,vic_suburb_polygon)
-melb_suburb_polygon <- vic_suburb_polygon %>% filter(LOC_PID %in% aux_polygon@data$LOC_PID)
 
-
-rm("aux_polygon","vic_suburb_polygon")
-
-  
 #postal areas from ABS
  
 if(!file.exists("POA_2016_AUST.shp")){
@@ -76,10 +102,16 @@ if(!file.exists("POA_2016_AUST.shp")){
   file.remove("pc.zip")
 }  
   
-vic_suburb_polygon <- readOGR( 
+aus_poas_polygon <- readOGR( 
   dsn="./" , 
   layer="POA_2016_AUST"
 )
+
+
+plot(vic_poas_polygon)
+
+
+
 
 
 #state electorates
