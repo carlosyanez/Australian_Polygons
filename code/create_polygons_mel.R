@@ -1,11 +1,9 @@
-### Create spatial polygons for different divisions in Metropolitan Melbourne
-
-
+### Create spatial polygons for different divisions in Victoria, Australia
 # Load/Install pacman
 if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-project.org")
 
 #use pacman to install all other packages
-pacman::p_load("tidyverse","spdplyr","sp","rgdal","raster","maptools","geojsonio",
+pacman::p_load("tidyverse","spdplyr","sp","rgdal","raster","maptools","geojsonio","rgeos","sf",
                "rvest","xml2")
 
 
@@ -74,7 +72,7 @@ if(!file.exists("VIC_LGA_POLYGON_SHP.shp")){
 }
 
 vic_lga_polygon <- readOGR( 
-  dsn="./" , 
+  dsn=path.expand("./VIC_LGA_POLYGON_SHP.shp"), 
   layer="VIC_LGA_POLYGON_SHP"
 )
 
@@ -89,7 +87,7 @@ if(!file.exists("VIC_LOCALITY_POLYGON_SHP.shp")){
 }
 
 vic_suburb_polygon <- readOGR( 
-  dsn="./" , 
+  dsn="./VIC_LOCALITY_POLYGON_SHP.shp" , 
   layer="VIC_LOCALITY_POLYGON_SHP"
 )
 
@@ -103,16 +101,35 @@ if(!file.exists("POA_2016_AUST.shp")){
 }  
   
 aus_poas_polygon <- readOGR( 
-  dsn="./" , 
+  dsn="./POA_2016_AUST.shp" , 
   layer="POA_2016_AUST"
 )
 
+# convert for sf objects
 
-plot(vic_poas_polygon)
+vic_lga_polygon <- sf::st_as_sf(vic_lga_polygon)
+vic_suburb_polygon <- sf::st_as_sf(vic_suburb_polygon)
+aus_poas_polygon   <-  sf::st_as_sf(aus_poas_polygon)
 
+# check suburb/lga crossover
 
+sl_fully_covered <- st_covered_by(vic_suburb_polygon,vic_lga_polygon)
 
+names(sl_fully_covered) <- vic_suburb_polygon$NAME
+sl_fully_covered<-sl_fully_covered[lengths(sl_fully_covered) > 0L]
 
+sl_fc <- tibble(suburb=character(),LGA=integer())
+for(i in 1:length(sl_fully_covered)){
+  
+  sl_fc <- sl_fc %>% add_row(suburb=vic_suburb_polygon[i,]$NAME,
+                             LGA=sl_fully_covered[[i]])
+}
+
+sl_fully_covered<-as_tibble(sl_fully_covered, .name_repair = "unique")
+
+i <-20
+name <- a[i,]$LGA_NAME 
+burbs <-c[[i]]
 
 #state electorates
 
