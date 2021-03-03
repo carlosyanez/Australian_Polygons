@@ -135,8 +135,10 @@ attributes(sl_in$area) <- NULL
 
 a<- sl_in %>% dplyr::select(-geometry) %>% filter(area>10^4) %>% count(NAME) 
 
-sl_in %>% filter(NAME=="BUNDOORA")
-               
+b <- sl_in %>% filter(LGA_NAME %in% c("DAREBIN CITY","MORELAND CITY"))
+    
+plot(b)
+           
 #state electorates
 
 #federal electorates
