@@ -4,7 +4,7 @@ if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-projec
 
 #use pacman to install all other packages
 pacman::p_load("tidyverse","spdplyr","sp","rgdal","raster","maptools","geojsonio","rgeos","sf",
-               "rvest","xml2")
+               "rvest","xml2","lwgeom")
 
 
 
@@ -127,10 +127,16 @@ for(i in 1:length(sl_fully_covered)){
 sl_fully_covered <- sl_fc
 rm(i,sl_fc)
 
+sl_in <- st_intersection(vic_suburb_polygon %>% filter(!(NAME %in% sl_fully_covered$suburb)),
+                      vic_lga_polygon) %>% st_area()
 
+sl_in$area <- sl_in %>% st_area()
+attributes(sl_in$area) <- NULL
 
+a<- sl_in %>% dplyr::select(-geometry) %>% filter(area>10^4) %>% count(NAME) 
 
-
+sl_in %>% filter(NAME=="BUNDOORA")
+               
 #state electorates
 
 #federal electorates
