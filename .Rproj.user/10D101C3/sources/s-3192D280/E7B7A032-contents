@@ -3,8 +3,8 @@
 if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-project.org")
 
 #use pacman to install all other packages
-pacman::p_load("tidyverse","spdplyr","sp","rgdal","raster","maptools","geojsonio","rgeos","sf",
-               "rvest","xml2","lwgeom")
+pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep",
+               "rvest","xml2")
 
 
 
@@ -71,10 +71,7 @@ if(!file.exists("VIC_LGA_POLYGON_SHP.shp")){
   file.remove("LGAs.zip")
 }
 
-vic_lga_polygon <- readOGR( 
-  dsn=path.expand("./VIC_LGA_POLYGON_SHP.shp"), 
-  layer="VIC_LGA_POLYGON_SHP"
-)
+vic_lga_polygon <- st_read("VIC_LGA_POLYGON_SHP.shp")
 
 
 ## get suburb polygons
@@ -86,10 +83,7 @@ if(!file.exists("VIC_LOCALITY_POLYGON_SHP.shp")){
   file.remove("LGAs.zip")
 }
 
-vic_suburb_polygon <- readOGR( 
-  dsn="./VIC_LOCALITY_POLYGON_SHP.shp" , 
-  layer="VIC_LOCALITY_POLYGON_SHP"
-)
+vic_suburb_polygon <- st_read("VIC_LOCALITY_POLYGON_SHP.shp")
 
 
 #postal areas from ABS
@@ -100,44 +94,69 @@ if(!file.exists("POA_2016_AUST.shp")){
   file.remove("pc.zip")
 }  
   
-aus_poas_polygon <- readOGR( 
-  dsn="./POA_2016_AUST.shp" , 
-  layer="POA_2016_AUST"
-)
-
-# convert for sf objects
-
-vic_lga_polygon <- sf::st_as_sf(vic_lga_polygon)
-vic_suburb_polygon <- sf::st_as_sf(vic_suburb_polygon)
-aus_poas_polygon   <-  sf::st_as_sf(aus_poas_polygon)
+aus_poas_polygon <- st_read("POA_2016_AUST.shp")
 
 # check suburb/lga crossover
+# check suburbs fully inside LGAs
 
 sl_fully_covered <- st_covered_by(vic_suburb_polygon,vic_lga_polygon)
 
 names(sl_fully_covered) <- vic_suburb_polygon$NAME
-#sl_fully_covered<-sl_fully_covered[lengths(sl_fully_covered) > 0L]
 
-sl_fc <- tibble(suburb=character(),LGA=character())
+sl_fc <- tibble(LOC_PID=character(),LGA=character())
 for(i in 1:length(sl_fully_covered)){
   if(length(sl_fully_covered[i])>0)
-  sl_fc <- sl_fc %>% add_row(suburb=vic_suburb_polygon[i,]$NAME,
+  sl_fc <- sl_fc %>% add_row(LOC_PID=vic_suburb_polygon[i,]$LOC_PID,
                              LGA=vic_lga_polygon[sl_fully_covered[[i]],]$LGA_NAME)
 }
-sl_fully_covered <- sl_fc
+sl_fully_covered <- sl_fc %>% pull(LOC_PID)
 rm(i,sl_fc)
 
+#check intersections between suburb LGa for remnant
+
 sl_in <- st_intersection(vic_suburb_polygon %>% filter(!(NAME %in% sl_fully_covered$suburb)),
-                      vic_lga_polygon) %>% st_area()
+                      vic_lga_polygon) 
 
 sl_in$area <- sl_in %>% st_area()
 attributes(sl_in$area) <- NULL
 
-a<- sl_in %>% dplyr::select(-geometry) %>% filter(area>10^4) %>% count(NAME) 
+# calculate area and filter small pieces (a block)
 
-b <- sl_in %>% filter(LGA_NAME %in% c("DAREBIN CITY","MORELAND CITY"))
-    
-plot(b)
+sl_in_count<- sl_in %>%  filter(area>10^4) %>% count(LOC_PID) 
+class(sl_in_count) <- "data.frame"
+sl_in_count <- sl_in_count %>% select(-geometry)
+
+# check which suburbs are (almost) fully contain in one LGA and add to list
+
+sl_fully_covered <- c(sl_fully_covered,
+                      sl_in_count %>% filter(n==1) %>%
+                        pull(LOC_PID)) %>% unique(.)
+
+# determine remnant and tag large pieces
+
+sl_in_remnant <-sl_in %>% filter(!(LOC_PID %in% sl_fully_covered)) %>%
+                          mutate(relevant=(area>10^4))
+
+# check where all areas are relevant
+
+sl_all_revelant <- as.data.frame(sl_in_remnant) %>% 
+  group_by(LOC_PID) %>%
+  summarise(n=n(),relevant=sum(relevant)) %>%
+  mutate(diff=n-relevant) %>% filter(diff==0)
+
+# if all areas are relevant, extract (nothing else to do)
+sl_mixed <- sl_in_remnant %>% filter(LOC_PID %in% sl_all_revelant$LOC_PID)
+
+# new remnant
+
+sl_in_remnant2 <- sl_in %>% 
+                  filter(!(LOC_PID %in% sl_mixed$LOC_PID)) %>%
+                  filter(!(LOC_PID %in% sl_fully_covered))
+
+b <- sl_in_remnant2 %>% filter(LOC_PID %in% c("VIC917") &LGA_PID=="VIC131")
+   
+b %>% st_split()
+plot(b %>% select(area))
            
 #state electorates
 
