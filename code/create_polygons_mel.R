@@ -3,8 +3,8 @@
 if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-project.org")
 
 #use pacman to install all other packages
-pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep",
-               "rvest","xml2")
+pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep","geojsonsf",
+               "rvest","xml2","stringi")
 
 
 
@@ -20,6 +20,7 @@ clean_lga <-function(df){
   df %>%   mutate(LGA=str_remove(LGA,"City of"),
                   LGA=str_remove(LGA,"Shire of"),
                   LGA=str_remove(LGA,"Shire"),
+                  LGA=str_remove(LGA,"City"),
                   LGA=str_remove(LGA,"Borough of"),
                   LGA=str_squish(LGA),
                   LGA=str_trim(LGA))
@@ -31,10 +32,9 @@ melb_lgas_list <- wiki_page %>%
   html_node(xpath="/html/body/div[3]/div[3]/div[5]/div[1]/table[1]") %>%
   html_table(fill = TRUE) %>% 
   rename(LGA=`Local government area`,
-         Population=`Population (2018)[1][2]`,
          Metro.Region=Region) %>%
   clean_lga() %>%
-  dplyr::select(LGA,Population,Metro.Region) %>%
+  dplyr::select(LGA,Metro.Region) %>%
   mutate(ABB_NAME=toupper(LGA),
          State.Region=regions[1])
 
@@ -49,7 +49,7 @@ lgas_list <- map_dfr(2:6, function(x,regions,wiki_page){
   slice(-1) %>%
   rename(LGA=`Local government area`) %>%
   clean_lga() %>%
-  dplyr::select(LGA,Population) %>%
+  dplyr::select(LGA) %>%
   mutate(ABB_NAME=toupper(LGA),
          State.Region=regions[x],
          Metro.Region="")
@@ -103,34 +103,43 @@ sl_fully_covered <- st_covered_by(vic_suburb_polygon,vic_lga_polygon)
 
 names(sl_fully_covered) <- vic_suburb_polygon$NAME
 
-sl_fc <- tibble(LOC_PID=character(),LGA=character())
+sl_fc <- tibble(LOC_PID=character(),LGA_PID=character(),LGA_NAME=character())
 for(i in 1:length(sl_fully_covered)){
   if(length(sl_fully_covered[i])>0)
   sl_fc <- sl_fc %>% add_row(LOC_PID=vic_suburb_polygon[i,]$LOC_PID,
-                             LGA=vic_lga_polygon[sl_fully_covered[[i]],]$LGA_NAME)
+                             LGA_PID=vic_lga_polygon[sl_fully_covered[[i]],]$LGA_PID,
+                             LGA_NAME=vic_lga_polygon[sl_fully_covered[[i]],]$LGA_NAME)
 }
-sl_fully_covered <- sl_fc %>% pull(LOC_PID)
+sl_fully_covered <- sl_fc 
 rm(i,sl_fc)
 
 #check intersections between suburb LGa for remnant
 
-sl_in <- st_intersection(vic_suburb_polygon %>% filter(!(NAME %in% sl_fully_covered$suburb)),
+sl_in <- st_intersection(vic_suburb_polygon %>% filter(!(LOC_PID %in% sl_fully_covered$LOC_PID)),
                       vic_lga_polygon) 
+sl_in_p <- sl_in %>%   st_collection_extract("POLYGON")               #keep polygons only
+sl_in_l <- sl_in %>%   st_collection_extract("LINESTRING") #%>%              #keep polygons only
+                     #  st_polygonize()
+
+sl_in <- rbind(sl_in_p,sl_in_l)
+rm(sl_in_p,sl_in_l)
 
 sl_in$area <- sl_in %>% st_area()
 attributes(sl_in$area) <- NULL
+sl_in <- sl_in %>% filter(!(area==0))
 
 # calculate area and filter small pieces (a block)
 
-sl_in_count<- sl_in %>%  filter(area>10^4) %>% count(LOC_PID) 
+sl_in_count<- sl_in %>%  filter(area>10^4) 
 class(sl_in_count) <- "data.frame"
-sl_in_count <- sl_in_count %>% select(-geometry)
+sl_in_count <- sl_in_count %>% select(-geometry) %>% select(LGA_PID,LOC_PID,LGA_NAME)
+sl_in_count2 <- sl_in_count %>% count(LOC_PID) %>% filter(n==1) 
 
 # check which suburbs are (almost) fully contain in one LGA and add to list
 
-sl_fully_covered <- c(sl_fully_covered,
-                      sl_in_count %>% filter(n==1) %>%
-                        pull(LOC_PID)) %>% unique(.)
+sl_fully_covered <- rbind(sl_fully_covered,
+                      sl_in_count %>% filter(LOC_PID %in% sl_in_count2$LOC_PID))
+rm(sl_in_count,sl_in_count2)
 
 # determine remnant and tag large pieces
 
@@ -146,25 +155,63 @@ sl_all_revelant <- as.data.frame(sl_in_remnant) %>%
 
 # if all areas are relevant, extract (nothing else to do)
 sl_mixed <- sl_in_remnant %>% filter(LOC_PID %in% sl_all_revelant$LOC_PID)
-
+rm(sl_all_revelant)
 # new remnant
 
-sl_in_remnant2 <- sl_in %>% 
-                  filter(!(LOC_PID %in% sl_mixed$LOC_PID)) %>%
-                  filter(!(LOC_PID %in% sl_fully_covered))
 
-b <- sl_in_remnant2 %>% filter(LOC_PID %in% c("VIC917") &LGA_PID=="VIC131")
+##consolidate all areas and filter what's left
+
+sl_mixed <-rbind(sl_mixed,
+                 sl_in_remnant %>% filter(relevant))
+
+vic_loc_lga <-sl_mixed %>% 
+  mutate(PID=str_c(LGA_PID,LOC_PID,sep="-")) %>%
+  select(PID,LGA_PID,LOC_PID,NAME,LGA_NAME)
+
+vic_loc_lga <-rbind(sl_mixed %>% select(LGA_PID,LOC_PID,NAME,LGA_NAME),
+                    vic_suburb_polygon %>% 
+                      left_join(sl_fully_covered,by="LOC_PID") %>% 
+                      filter(!is.na(LGA_PID)) %>%
+                      select(LGA_PID,LOC_PID,NAME,LGA_PID,LGA_NAME)) %>%
+              mutate(PID=str_c(LGA_PID,LOC_PID,sep="-"))
+
+sl_in_remnant <- sl_in %>% mutate(PID=str_c(LGA_PID,LOC_PID,sep="-")) %>%
+                 filter(!(PID %in% vic_loc_lga$PID)) %>%
+                 select(LGA_PID,LOC_PID,NAME,LGA_NAME,PID)
+
+sl_in_remnant$area <- sl_in_remnant %>% st_area()
+attributes(sl_in_remnant$area) <- NULL
+sl_in_remnant <- sl_in_remnant %>% filter(!(area==0))
+sl_in_remnant <- sl_in_remnant %>% mutate(relevant=(area>10^4))
+
+#move relevant to main map
+
+vic_loc_lga <- rbind(vic_loc_lga,
+                     sl_in_remnant %>% filter(relevant) %>% select(-relevant,-area))
+
+sl_in_remnant <- sl_in_remnant %>% filter(!relevant) %>% select(-relevant,-area)
+
+##check
+#datax=tibble(datax=sl_in_remnant %>% st_area())
+#attributes(datax$datax) <- NULL
+#ggplot(data=datax,aes(x=datax)) + geom_histogram()
+
+vic_loc_lga <- vic_loc_lga %>% mutate(LGA=stri_trans_totitle(tolower(LGA_NAME)),
+                       Locality=stri_trans_totitle(tolower(NAME))) %>%
+                clean_lga() %>% select(-LGA_NAME) %>%
+                left_join(lgas_list,by="LGA") %>%
+                mutate(State="VIC")
    
-b %>% st_split()
-plot(b %>% select(area))
-           
+sf_geojson(vic_loc_lga)
+saveRDS(vic_loc_lga,"melbourne/melb_loc_lga.rds")
+
+
 #state electorates
 
 #federal electorates
 
 ### Export 
-melb_boundary_geojson <- geojson_json(melb_boundary)
-geojson_write(melb_boundary_geojson,file="melbourne/melb_metro_boundary.geojson")
+sf_geojson(melb_boundary_geojson,file="melbourne/melb_metro_boundary.geojson")
 saveRDS(melb_boundary,"melbourne/melb_metro_boundary.rds")
 ggsave("melbourne/melb_metro_boundary.png",plot(melb_boundary))
 
