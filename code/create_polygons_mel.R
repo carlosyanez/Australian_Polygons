@@ -4,13 +4,13 @@ if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-projec
 
 #use pacman to install all other packages
 pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep","geojsonsf","rgeos","smoothr",
-               "rvest","xml2","stringi")
+               "rvest","xml2","stringi","units")
 
 
 
 
 ## get list of  councils across state
-area_tolerance <-10^4
+area_tolerance <-set_units(10^4,m^2)
 area_tolerance2 <-10^6
 
 
@@ -126,6 +126,41 @@ if(!file.exists("POA_2016_AUST.shp")){
   
 aus_poas_polygon <- st_read("POA_2016_AUST.shp")
 
+##alternative
+
+vic_loc_lga_1 <- map_df(1:nrow(vic_lga_polygon),function(x,suburb_polygon,lga_polygon){
+                                     message(x)
+                                     a <- st_intersection(suburb_polygon,lga_polygon[x,]) %>%
+                                          st_collection_extract("POLYGON") 
+                                     message(nrow(a))
+                                     if(nrow(a)==0){
+                                       lga_polygon[x,] %>% rename(LGA=LGA_NAME) %>% 
+                                                           clean_lga() %>%
+                                                           mutate(LOC_PID=LGA_PID,
+                                                                  LOCALITY=LGA,
+                                                                  ROW_ID=row_number(),
+                                                                  AREA=st_area(.),
+                                                                  RELEVANT=TRUE) %>%
+                                                                  select(ROW_ID,LOC_PID,LGA_PID,LGA,LOCALITY,AREA,RELEVANT)
+                                             
+                                     }else{
+                                        a %>% st_cast("MULTILINESTRING") %>% st_cast("LINESTRING") %>%
+                                              st_collection_extract("LINESTRING") %>%
+                                              st_polygonize() %>%
+                                              mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance)) %>%
+                                              rename(LGA=LGA_NAME,LOCALITY=NAME) %>% 
+                                              clean_lga() %>%
+                                              mutate(ROW_ID=row_number(), LOCALITY=stri_trans_totitle(tolower(LOCALITY))) %>%
+                                              select(ROW_ID,LOC_PID,LGA_PID,LGA,LOCALITY,AREA,RELEVANT)   
+                                     }
+                        },vic_suburb_polygon,vic_lga_polygon)
+                      
+
+
+
+
+
+plot(vic_loc_lga_1 %>% filter(RELEVANT & grepl("Moreland|Darebin",LGA)) %>%  st_snap())
 # check suburb/lga crossover
 # check suburbs fully inside LGAs
 

@@ -1,0 +1,15 @@
+a<- st_intersection(vic_suburb_polygon,vic_lga_polygon[78,]) %>%
+  st_collection_extract("POLYGON") 
+
+vic_lga_polygon[78,] %>% rename(LGA=LGA_NAME) %>% 
+  clean_lga() %>%
+  mutate(LOC_PID=LGA_PID,
+         LOCALITY=LGA,
+         ROW_ID=row_number(),
+         AREA=st_area(.),
+         RELEVANT=TRUE) %>%
+         select(ROW_ID,LOC_PID,LGA_PID,LGA,LOCALITY,AREA,RELEVANT)
+  s
+  nrow(vic_lga_polygon[78,])
+  
+  
