@@ -1,0 +1,28 @@
+{
+    "id": "5F2CF38C",
+    "path": null,
+    "project_path": null,
+    "type": "object_explorer",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1614774336118.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "id": "d5f6d7a898a948ef90f65525a94e8932",
+        "name": "sl_in",
+        "title": "sl_in",
+        "language": "R",
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 0,
+    "encoding": "",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1614774336118,
+    "read_only": false,
+    "read_only_alternatives": []
+}

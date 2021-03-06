@@ -1,0 +1,26 @@
+{
+    "id": "E7B7A032",
+    "path": "~/Google Drive/GitHub/Australian_Polygons/code/create_polygons_mel.R",
+    "project_path": "code/create_polygons_mel.R",
+    "type": "r_source",
+    "hash": "3553352708",
+    "contents": "",
+    "dirty": false,
+    "created": 1614752115306.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "190,0",
+        "scrollLine": "169"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1615014043,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1615014043438,
+    "read_only": false,
+    "read_only_alternatives": []
+}
