@@ -1,9 +1,0 @@
-data(countriesLow, package="rworldmap")
-
-countriesLow <- st_as_sf(countriesLow)
-
-continent <- countriesLow %>% 
-  group_by(continent) %>% 
-  summarise()
-
-plot(continent)
