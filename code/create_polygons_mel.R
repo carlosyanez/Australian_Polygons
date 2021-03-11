@@ -18,7 +18,7 @@ area_tolerance3 <-set_units(0.3,1)
 
 State <-"VIC"
 State_folder <- "victoria/"
-
+State_poa <- as.character(3000:3999)
 
 regions <- c("Greater Metropolitan Melbourne","Barwon South West","Grampians",
              "Gippsland","Hume","Loddon Mallee")
@@ -120,6 +120,9 @@ shapes <- map(1:nrow(shp_files), function(x,shp_files){
 
 names(shapes) <- shp_files %>% pull(name)
 
+#filter POAS
+
+shapes$POA <- shapes$POA %>% filter(POA_CODE16 %in% State_poa)
 
 
 loc_lga_1 <- map_df(1:nrow(shapes$LGA),function(x,suburb_polygon,lga_polygon){
@@ -198,12 +201,12 @@ rm(list=ls()[! ls() %in% c("loc_lga","shapes","clean_lga","area_tolerance","area
 
 #merge with poa
 
-state <- loc_lga %>%
-  group_by(State) %>%
-  summarise()
+#state <- loc_lga %>%
+#  group_by(State) %>%
+#  summarise()
 
-poa <- st_intersection(shapes$POA,state) 
-poa <- shapes$POA %>% filter(POA_CODE16 %in% poa$POA_CODE16)
+#poa <- st_intersection(shapes$POA,state) 
+#poa <- shapes$POA %>% filter(POA_CODE16 %in% poa$POA_CODE16)
 
 loc_lga_poa1 <- map_df(1:nrow(loc_lga),function(x,lga_loc_polygon,poa_polygon){
   #message(x)
@@ -221,7 +224,7 @@ loc_lga_poa1 <- map_df(1:nrow(loc_lga),function(x,lga_loc_polygon,poa_polygon){
       mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance)) %>%
       select(POA_CODE16,colnames(lga_loc_polygon),AREA,RELEVANT)   
   }
-},loc_lga,poa)
+},loc_lga, shapes$POA)
 
 
 #fill missing POAS
@@ -236,9 +239,12 @@ double_pas_loc <-c("VIC1634")
 
 loc_lga_poa1 <- loc_lga_poa1 %>% 
                     left_join(missing_poas,by="LOC_PID") %>%
-                    filter(!(POA_CODE16 %in% double_poas)) %>%
                     mutate(POA_CODE16=if_else(POA_CODE16=="none",missingPOA,POA_CODE16)) %>%
+                    filter(!(POA_CODE16 %in% double_poas)) %>%
+                    filter(!(LOC_PID %in% double_pas_loc)) %>%
                     select(-missingPOA) 
+
+#loc_lga_poa11 %>% filter(POA_CODE16=="3000")
 
 #relevance
 
@@ -251,8 +257,8 @@ loc_lga_poa_table <- as.data.frame(loc_lga_poa1) %>% select(-geometry) %>%
   slice_max(order_by=desc(AREA_REL),n=1) %>%
   #filter(AREA_REL>=area_tolerance3) %>%
   #filter(AREA_REL==max(AREA_REL)) %>%
-  mutate(ROW_ID=row_number()) %>%
-  ungroup()
+  ungroup() 
+  
 
 
 loc_lga_poa_a <-  loc_lga %>% 
@@ -261,7 +267,7 @@ loc_lga_poa_a <-  loc_lga %>%
                                    by=c("LOC_PID","LGA_PID")) %>%
                         filter(!is.na(POA_CODE16))
 
-plot(loc_lga_poa_a %>% select(POA_CODE16))
+#plot(loc_lga_poa_a %>% select(POA_CODE16))
 
 ## special areas in missing_poas
 
@@ -277,4 +283,41 @@ loc_lga_poa <- rbind(loc_lga_poa_a,loc_lga_poa_b)
 rm(list=ls()[! ls() %in% c("loc_lga_poa","shapes","area_tolerance","area_tolerance2","State_folder")])
 
 saveRDS(loc_lga_poa,str_c(State_folder,"lga_loc_poa.rds"))
-plot(loc_lga_poa %>% filter(LGA %in% c("Melbourne","Moreland","Port Phillip")) %>% select(POA_CODE16))
+#plot(loc_lga_poa %>% filter(LGA %in% c("Melbourne","Moreland","Port Phillip")) %>% select(POA_CODE16))
+
+
+#get sa1 
+
+sa1 <- sa12016 %>% filter(state_code_2016==2)
+
+sa1_poa_loc_lga <- map_df(1:nrow(loc_lga_poa),function(x,lga_loc_polygon,poa_polygon){
+  #message(x)
+  a <- st_intersection(poa_polygon,lga_loc_polygon[x,]) %>%
+    st_collection_extract("POLYGON") 
+  if(nrow(a)==0){
+    lga_loc_polygon[x,] %>% mutate(POA_CODE16="none",
+                                   AREA=st_area(.),
+                                   RELEVANT=TRUE)
+  }else{
+    #message(nrow(a))
+    a %>% st_cast("MULTILINESTRING") %>% st_cast("LINESTRING") %>%
+      st_collection_extract("LINESTRING") %>%
+      st_polygonize() %>%
+      mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance)) %>%
+      select(POA_CODE16,LOC_PID,LGA_PID,LOCALITY,LGA,State,colnames(sa1),AREA,RELEVANT)   
+  }
+},loc_lga_poa,sa1)
+
+sa1_poa_loc_lga_table <- sa1_poa_loc_lga %>% 
+  mutate(AREA=st_area(.)) %>%
+  as.data.frame()  %>% 
+  select(-geometry) %>%
+  select(POA_CODE16,LOC_PID,LGA_PID,LOCALITY,LGA,State,
+         sa1_main_2016,sa1_7dig_2016,sa2_main_2016,sa2_5dig_2016,sa2_name_2016,sa3_code_2016,
+         sa3_name_2016,sa4_code_2016,sa4_name_2016,gcc_code_2016,gcc_name_2016,state_code_2016,AREA) %>%
+  group_by(sa1_main_2016) %>%
+  slice_max(order_by=desc(AREA),n=1) %>%
+  ungroup() %>%
+  unique(.)
+
+a<- sa1_poa_loc_lga_table %>% count(sa1_main_2016)
