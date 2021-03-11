@@ -320,4 +320,42 @@ sa1_poa_loc_lga_table <- sa1_poa_loc_lga %>%
   ungroup() %>%
   unique(.)
 
+### check missing SAs -- in VIC there are four SAs for offshore and no usual address
 a<- sa1_poa_loc_lga_table %>% count(sa1_main_2016)
+sa1 %>% filter(!(sa1_main_2016 %in% a$sa1_main_2016))
+
+write_csv(sa1_poa_loc_lga_table,str_c(State_folder,"sa1_table.csv"))
+
+## Re-aggregate LGAs
+##colnames(loc_lga_poa %>% select(-POA_CODE16,-LOC_PID,-LOCALITY)
+
+lgas <- loc_lga_poa %>% 
+        group_by(LGA_PID,LGA,State.Region,Metro.Region,State) %>%
+        summarise()
+
+locs <- loc_lga_poa %>% 
+  group_by(LOC_PID,LOCALITY,State.Region,Metro.Region,State) %>%
+  summarise()
+
+poas <- loc_lga_poa %>% 
+  group_by(POA_CODE16,State.Region,Metro.Region,State) %>%
+  summarise() 
+
+state <- lgas %>%
+         group_by(State) %>%
+         summarise() %>%
+         st_cast("MULTILINESTRING") %>% st_cast("LINESTRING") %>%
+         st_collection_extract("LINESTRING") %>%
+         st_polygonize() %>%
+         mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance)) %>%
+         filter(RELEVANT) %>%
+         group_by(State) %>%
+         summarise()
+
+plot(state %>% select(State))
+
+
+saveRDS(lgas,str_c(State_folder,"lgas.rds"))
+saveRDS(locs,str_c(State_folder,"locs.rds"))
+saveRDS(poas,str_c(State_folder,"poas.rds"))
+saveRDS(state,str_c(State_folder,"state.rds"))
