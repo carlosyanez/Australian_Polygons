@@ -1,10 +1,12 @@
 ### Create spatial polygons for different divisions in Victoria, Australia
 # Load/Install pacman
 if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-project.org")
+if(!require(absmapsdata)) devotools::install_github("wfmackey/absmapsdata")
 
+devotools::install_github("wfmackey/absmaps")
 #use pacman to install all other packages
 pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep","geojsonsf","rgeos","smoothr",
-               "rvest","xml2","stringi","units")
+               "rvest","xml2","stringi","units","absmapsdata")
 
 
 
@@ -12,9 +14,10 @@ pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep","geojsonsf","rgeos","sm
 ## get list of  councils across state
 area_tolerance <-set_units(10^4,m^2)
 area_tolerance2 <-set_units(10^4,m^2)
-area_tolerance3 <-set_units(0.4,1)
+area_tolerance3 <-set_units(0.3,1)
 
 State <-"VIC"
+State_folder <- "victoria/"
 
 
 regions <- c("Greater Metropolitan Melbourne","Barwon South West","Grampians",
@@ -98,8 +101,8 @@ rm(regions,melb_lgas_list,wiki_page,uninc_areas)
 #Download all shapefiles
 
 shp_files <- tribble(~name,~filename,~url,
-                     "LGA","VIC_LGA_POLYGON_SHP.shp","https://data.gov.au/data/dataset/bdf92691-c6fe-42b9-a0e2-a4cd716fa811/resource/7b6043d1-76b8-4ea9-b36b-51c61aa740d0/download/vic_lga_polygon_shp.zip",
-                     "LOC","VIC_LOCALITY_POLYGON_SHP.shp","https://data.gov.au/data/dataset/af33dd8c-0534-4e18-9245-fc64440f742e/resource/3b946968-319e-4125-8971-2a33d5bf000c/download/vic_locality_polygon_shp.zip",
+                     "LGA","VIC_LGA_POLYGON_SHP.shp","https://data.gov.au/data/dataset/bdf92691-c6fe-42b9-a0e2-a4cd716fa811/resource/7b6043d1-76b8-4ea9-b36b-51c61aa740d0/download/lga_polygon_shp.zip",
+                     "LOC","VIC_LOCALITY_POLYGON_SHP.shp","https://data.gov.au/data/dataset/af33dd8c-0534-4e18-9245-fc64440f742e/resource/3b946968-319e-4125-8971-2a33d5bf000c/download/locality_polygon_shp.zip",
                      "POA","POA_2016_AUST.shp","https://www.abs.gov.au/ausstats/subscriber.nsf/log?openagent&1270055003_poa_2016_aust_shape.zip&1270.0.55.003&Data%20Cubes&4FB811FA48EECA7ACA25802C001432D0&0&July%202016&13.09.2016&Previous"
                      )
 
@@ -119,7 +122,7 @@ names(shapes) <- shp_files %>% pull(name)
 
 
 
-vic_loc_lga_1 <- map_df(1:nrow(shapes$LGA),function(x,suburb_polygon,lga_polygon){
+loc_lga_1 <- map_df(1:nrow(shapes$LGA),function(x,suburb_polygon,lga_polygon){
                                    #message(x)
                                      a <- st_intersection(suburb_polygon,lga_polygon[x,]) %>%
                                           st_collection_extract("POLYGON") 
@@ -147,7 +150,7 @@ vic_loc_lga_1 <- map_df(1:nrow(shapes$LGA),function(x,suburb_polygon,lga_polygon
                         },shapes$LOC,shapes$LGA)
                       
 
-loc_count <- as.data.frame(vic_loc_lga_1) %>% select(-geometry) %>% 
+loc_count <- as.data.frame(loc_lga_1) %>% select(-geometry) %>% 
              group_by(LOC_PID,LOCALITY) %>%
              summarise(n=n(),relevant=sum(RELEVANT),.groups="drop") %>%
              mutate(single_rel=(relevant==1),
@@ -158,51 +161,51 @@ loc_count <- as.data.frame(vic_loc_lga_1) %>% select(-geometry) %>%
                    
 
 
-vic_loc_lga_1 <- vic_loc_lga_1 %>% left_join(loc_count %>% select(LOC_PID,group),by="LOC_PID")
+loc_lga_1 <- loc_lga_1 %>% left_join(loc_count %>% select(LOC_PID,group),by="LOC_PID")
 
 #filter out a, filter and consolidate c
-vic_loc_lga_a <- vic_loc_lga_1 %>% filter(group=="a") %>% select(-ROW_ID,-group,-RELEVANT,-AREA) %>%
+loc_lga_a <- loc_lga_1 %>% filter(group=="a") %>% select(-ROW_ID,-group,-RELEVANT,-AREA) %>%
                                   group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
                                   summarise()
-vic_loc_lga_b <- vic_loc_lga_1 %>% filter(group=="b") %>%
+loc_lga_b <- loc_lga_1 %>% filter(group=="b") %>%
                  group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
                 summarise()
 
 
-vic_loc_lga_c <-  vic_loc_lga_1 %>% filter(group=="c") %>% 
+loc_lga_c <-  loc_lga_1 %>% filter(group=="c") %>% 
                   filter(AREA>area_tolerance2) %>%
                   select(-group,-AREA)
   
-vic_loc_lga_c_rel <- vic_loc_lga_c %>% filter(RELEVANT) %>%
+loc_lga_c_rel <- loc_lga_c %>% filter(RELEVANT) %>%
                       group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
                       summarise() %>%
                       mutate(ROW_ID=10^4*row_number())
   
-vic_loc_lga_c_irrel <- vic_loc_lga_c %>% 
+loc_lga_c_irrel <- loc_lga_c %>% 
                        filter(!RELEVANT) %>% 
                        mutate(ROW_ID=10^4*row_number()) %>%
                        select(-RELEVANT)
 
-#nrow(vic_loc_lga_c_irrel) # equals 0, nothing else to do here
+#nrow(loc_lga_c_irrel) # equals 0, nothing else to do here
 
 #left ROW_ID in case it is needed in other states
-vic_loc_lga <- rbind(vic_loc_lga_a,vic_loc_lga_b) %>% 
-               rbind(vic_loc_lga_c_rel %>% select(-ROW_ID)) %>%
+loc_lga <- rbind(loc_lga_a,loc_lga_b) %>% 
+               rbind(loc_lga_c_rel %>% select(-ROW_ID)) %>%
                left_join(lgas_list,by="LGA") %>%
                mutate(State=State)
 
-rm(list=ls()[! ls() %in% c("vic_loc_lga","shapes","clean_lga","area_tolerance","area_tolerance2")])
+rm(list=ls()[! ls() %in% c("loc_lga","shapes","clean_lga","area_tolerance","area_tolerance2")])
 
 #merge with poa
 
-vic_state <- vic_loc_lga %>%
+state <- loc_lga %>%
   group_by(State) %>%
   summarise()
 
-vic_poa <- st_intersection(shapes$POA,vic_state) 
-vic_poa <- shapes$POA %>% filter(POA_CODE16 %in% vic_poa$POA_CODE16)
+poa <- st_intersection(shapes$POA,state) 
+poa <- shapes$POA %>% filter(POA_CODE16 %in% poa$POA_CODE16)
 
-vic_loc_lga_poa1 <- map_df(1:nrow(vic_loc_lga),function(x,lga_loc_polygon,poa_polygon){
+loc_lga_poa1 <- map_df(1:nrow(loc_lga),function(x,lga_loc_polygon,poa_polygon){
   #message(x)
   a <- st_intersection(poa_polygon,lga_loc_polygon[x,]) %>%
        st_collection_extract("POLYGON") 
@@ -218,76 +221,60 @@ vic_loc_lga_poa1 <- map_df(1:nrow(vic_loc_lga),function(x,lga_loc_polygon,poa_po
       mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance)) %>%
       select(POA_CODE16,colnames(lga_loc_polygon),AREA,RELEVANT)   
   }
-},vic_loc_lga,vic_poa)
+},loc_lga,poa)
 
 
 #fill missing POAS
-#vic_loc_lga_poa1 %>% filter(POA_CODE16=="none")
+#loc_lga_poa1 %>% filter(POA_CODE16=="none")
 missing_poas <- tribble(~LOC_PID,~missingPOA,
                         "VIC2104","3965",
                         "VIC2305","3971",
                         "VIC2746","3966"
 )
+double_poas <- c("3000","3001","3004")
+double_pas_loc <-c("VIC1634")
 
-vic_loc_lga_poa1 <- vic_loc_lga_poa1 %>% 
+loc_lga_poa1 <- loc_lga_poa1 %>% 
                     left_join(missing_poas,by="LOC_PID") %>%
+                    filter(!(POA_CODE16 %in% double_poas)) %>%
                     mutate(POA_CODE16=if_else(POA_CODE16=="none",missingPOA,POA_CODE16)) %>%
                     select(-missingPOA) 
 
 #relevance
 
 
-loc_lga_poa_table <- as.data.frame(vic_loc_lga_poa1) %>% select(-geometry) %>% 
+loc_lga_poa_table <- as.data.frame(loc_lga_poa1) %>% select(-geometry) %>% 
   filter(RELEVANT) %>% 
   select(LOC_PID,LGA_PID,LOCALITY,LGA,POA_CODE16,AREA) %>%
   group_by(LOC_PID,LGA_PID,LOCALITY,LGA) %>%
-  arrange(desc(AREA)) %>%
   mutate(AREA_REL=AREA/sum(AREA)) %>%
-  filter(AREA_REL>=area_tolerance3) %>%
-  mutate(ROW_ID=row_number())
-
-loc_lga_poa_table1 <- loc_lga_poa_table
-
-
-a <- st_intersection(vic_poa,vic_loc_lga[2634,]) %>%
-  st_collection_extract("POLYGON") 
-
-plot(vic_loc_lga%>% filter(grepl("Island",LGA))%>% select(LGA))
-# check suburbs fully inside LGAs
+  slice_max(order_by=desc(AREA_REL),n=1) %>%
+  #filter(AREA_REL>=area_tolerance3) %>%
+  #filter(AREA_REL==max(AREA_REL)) %>%
+  mutate(ROW_ID=row_number()) %>%
+  ungroup()
 
 
+loc_lga_poa_a <-  loc_lga %>% 
+                        left_join (loc_lga_poa_table %>% 
+                                     select(LOC_PID,LGA_PID,POA_CODE16),
+                                   by=c("LOC_PID","LGA_PID")) %>%
+                        filter(!is.na(POA_CODE16))
+
+plot(loc_lga_poa_a %>% select(POA_CODE16))
+
+## special areas in missing_poas
+
+loc_lga_remnant <- loc_lga %>% filter(LOC_PID %in% double_pas_loc)
+poa_remnant <- shapes$POA %>% filter(POA_CODE16 %in% double_poas)
+
+loc_lga_poa_b <- st_intersection(loc_lga_remnant,poa_remnant) %>% select(colnames(loc_lga_poa_a))
 
 
-##postcodes
-vic_lga <- vic_loc_lga %>%
-  group_by(LGA,State,State.Region,Metro.Region,LGA_PID) %>% 
-  summarise()
+###join and clean up
 
-vic_region <- vic_lga %>%
-  group_by(State,State.Region) %>% 
-  summarise()
+loc_lga_poa <- rbind(loc_lga_poa_a,loc_lga_poa_b)
+rm(list=ls()[! ls() %in% c("loc_lga_poa","shapes","area_tolerance","area_tolerance2","State_folder")])
 
-vic_loc <- vic_loc_lga %>%
-  group_by(NAME,State,State.Region,Metro.Region,LOC_PID) %>% 
-  summarise()
-
-vic_state <- vic_region %>%
-             group_by(State) %>%
-             summarise()
-
-plot(vic_state %>% select(State))
-
-#sf_geojson(vic_loc_lga)
-saveRDS(vic_loc_lga,"victoria/vic_loc_lga.rds")
-#sample plot
-ggsave("victoria/vic_loc_lga.png",plot(vic_loc_lga %>% 
-                                         filter(State.Region=="Greater Metropolitan Melbourne") %>%
-                                         select(LGA)))
-saveRDS(vic_loc_lga,"victoria/vic_lga.rds")
-saveRDS(vic_loc_lga,"victoria/vic_lga.rds")
-
-
-#state electorates
-
-#federal electorates
-
+saveRDS(loc_lga_poa,str_c(State_folder,"lga_loc_poa.rds"))
+plot(loc_lga_poa %>% filter(LGA %in% c("Melbourne","Moreland","Port Phillip")) %>% select(POA_CODE16))
