@@ -23,13 +23,15 @@ clean_lga <-function(df){
                   LGA=str_remove(LGA,"\\("),
                   LGA=str_remove(LGA,"\\)"),
                   LGA=str_remove(LGA,"\\(Uninc\\)"),
+                  LGA=str_remove(LGA,"Uninc"),
                   LGA=str_remove(LGA,"Region"),
                   LGA=str_remove(LGA,"Municipality"),
                   LGA=str_remove(LGA,"\\(East Arm\\)"),
                   LGA=str_squish(LGA),
                   LGA=str_trim(LGA),
-                  LGA=str_replace(LGA,"Un-Incorporated (Nhulunbuy) Area","Nhulunbuy"))
-  
+                  LGA=str_replace(LGA,"Un-Incorporated (Nhulunbuy) Area","Nhulunbuy"),
+                  LGA=str_replace(LGA,"George","George Town"))
+
 }
 
 

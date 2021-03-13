@@ -1,9 +1,8 @@
 ### Create spatial polygons for different divisions in Victoria, Australia
 # Load/Install pacman
 if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-project.org")
-if(!require(absmapsdata)) devotools::install_github("wfmackey/absmapsdata")
+if(!require(absmapsdata)) devtools::install_github("wfmackey/absmapsdata")
 
-devotools::install_github("wfmackey/absmaps")
 #use pacman to install all other packages
 pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep","geojsonsf","rgeos","smoothr",
                "rvest","xml2","stringi","units","absmapsdata")
@@ -152,10 +151,10 @@ loc_lga_1 <- loc_lga_1 %>% left_join(loc_count %>% select(LOC_PID,group),by="LOC
 #filter out a, filter and consolidate c
 loc_lga_a <- loc_lga_1 %>% filter(group=="a") %>% select(-ROW_ID,-group,-RELEVANT,-AREA) %>%
                                   group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
-                                  summarise()
+                                  summarise(.groups="drop") 
 loc_lga_b <- loc_lga_1 %>% filter(group=="b") %>%
                  group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
-                summarise()
+                summarise(.groups="drop") 
 
 
 loc_lga_c <-  loc_lga_1 %>% filter(group=="c") %>% 
@@ -164,7 +163,7 @@ loc_lga_c <-  loc_lga_1 %>% filter(group=="c") %>%
   
 loc_lga_c_rel <- loc_lga_c %>% filter(RELEVANT) %>%
                       group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
-                      summarise() %>%
+                      summarise(.groups="drop")  %>%
                       mutate(ROW_ID=10^4*row_number())
   
 loc_lga_c_irrel <- loc_lga_c %>% 
@@ -178,9 +177,15 @@ loc_lga_c_irrel <- loc_lga_c %>%
 loc_lga <- rbind(loc_lga_a,loc_lga_b) %>% 
                rbind(loc_lga_c_rel %>% select(-ROW_ID)) %>%
                left_join(lgas_list,by="LGA") %>%
-               mutate(State=State) %>%
-               group_by(LOC_PID,LGA_PID,LGA,LOCALITY,State.Region,ABB_NAME,Metro.Region,State) %>%
-               summarise()    
+               mutate(State=State) 
+
+loc_lga$AREA <-st_area(loc_lga)
+
+loc_lga <- loc_lga %>%
+  mutate(RELEVANT=(AREA>area_tolerance)) %>%
+  filter(RELEVANT) %>%
+  group_by(LOC_PID,LGA_PID,LGA,LOCALITY,State.Region,ABB_NAME,Metro.Region,State) %>%
+  summarise(.groups="drop")    
 
 rm(list=ls()[! ls() %in% c("loc_lga","shapes","clean_lga","area_tolerance","area_tolerance2","State","State_folder","State_poa")])
 
@@ -191,7 +196,7 @@ loc_lga<-st_transform(loc_lga,st_crs(shapes$POA))
 
 #state <- loc_lga %>%
 #  group_by(State) %>%
-#  summarise()
+#  summarise(.groups="drop") 
 
 #poa <- st_intersection(shapes$POA,state) 
 #poa <- shapes$POA %>% filter(POA_CODE16 %in% poa$POA_CODE16)
@@ -266,9 +271,11 @@ loc_lga_poa_b <- st_intersection(loc_lga_remnant,poa_remnant) %>% select(colname
 
 
 ###join and clean up
-
 loc_lga_poa <- rbind(loc_lga_poa_a,loc_lga_poa_b)
-rm(list=ls()[! ls() %in% c("loc_lga_poa","shapes","area_tolerance","area_tolerance2","State_folder")])
+
+loc_lga_poa %>% filter(POA_CODE16=="none") 
+
+rm(list=ls()[! ls() %in% c("loc_lga_poa","shapes","area_tolerance","area_tolerance2","State_folder","missing_poas")])
 
 saveRDS(loc_lga_poa,str_c(State_folder,"lga_loc_poa.rds"))
 #plot(loc_lga_poa %>% filter(LGA %in% c("Melbourne","Moreland","Port Phillip")) %>% select(POA_CODE16))
@@ -285,7 +292,7 @@ sa1_poa_loc_lga <- map_df(1:nrow(loc_lga_poa),function(x,lga_loc_polygon,poa_pol
   if(nrow(a)==0){
     lga_loc_polygon[x,] %>% mutate(POA_CODE16="none",
                                    AREA=st_area(.),
-                                   RELEVANT=TRUE)
+                                   RELEVANT=TRUE) %>%  filter(!(POA_CODE16=="none"))
   }else{
     #message(nrow(a))
     a %>% st_cast("MULTILINESTRING") %>% st_cast("LINESTRING") %>%
@@ -319,26 +326,27 @@ write_csv(sa1_poa_loc_lga_table,str_c(State_folder,"sa1_table.csv"))
 
 lgas <- loc_lga_poa %>% 
         group_by(LGA_PID,LGA,State.Region,Metro.Region,State) %>%
-        summarise()
+        summarise(.groups="drop") 
 
 locs <- loc_lga_poa %>% 
   group_by(LOC_PID,LOCALITY,State.Region,Metro.Region,State) %>%
-  summarise()
+  summarise(.groups="drop") 
 
 poas <- loc_lga_poa %>% 
   group_by(POA_CODE16,State.Region,Metro.Region,State) %>%
-  summarise() 
+  summarise(.groups="drop")  
 
 state <- lgas %>%
          group_by(State) %>%
-         summarise() %>%
+         summarise(.groups="drop")  %>%
          st_cast("MULTILINESTRING") %>% st_cast("LINESTRING") %>%
          st_collection_extract("LINESTRING") %>%
          st_polygonize() %>%
          mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance)) %>%
          filter(RELEVANT) %>%
+  
          group_by(State) %>%
-         summarise()
+         summarise(.groups="drop") 
 
 plot(state %>% select(State))
 
