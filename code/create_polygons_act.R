@@ -127,7 +127,12 @@ missing_poas <- tribble(~LOC_PID,~missingPOA,
                         "ACT659","2620",
                         "ACT610","2905",
                         "ACT933","2914",
-                        "ACT602","2903"
+                        "ACT602","2903",
+                        "ACT701","2911",
+                        "ACT924","2620",
+                        "ACT913","2900",
+                        "ACT801","2620",
+                        "ACT802","2620"
 )
 
 #double_poas <- c("3000","3001","3004")
@@ -135,7 +140,8 @@ missing_poas <- tribble(~LOC_PID,~missingPOA,
 
 loc_lga_poa1 <- loc_lga_poa1 %>% 
                     left_join(missing_poas,by="LOC_PID") %>%
-                    mutate(POA_CODE16=if_else(POA_CODE16=="none",missingPOA,POA_CODE16)) %>%
+                    mutate(POA_CODE16=str_trim(POA_CODE16)) %>%
+                    mutate(POA_CODE16=if_else(POA_CODE16=="none",missingPOA,str_trim(POA_CODE16))) %>%
 #                    filter(!(POA_CODE16 %in% double_poas)) %>%
 #                    filter(!(LOC_PID %in% double_pas_loc)) %>%
                      select(-missingPOA) 
@@ -145,7 +151,7 @@ loc_lga_poa1 <- loc_lga_poa1 %>%
 #relevance
 
 loc_lga_poa_table <- as.data.frame(loc_lga_poa1) %>% select(-geometry) %>% 
-  filter(RELEVANT) %>% 
+  #filter(RELEVANT) %>% 
   select(LOC_PID,LGA_PID,LOCALITY,LGA,POA_CODE16,AREA) %>%
   group_by(LOC_PID,LGA_PID,LOCALITY,LGA) %>%
   mutate(AREA_REL=AREA/sum(AREA)) %>%
