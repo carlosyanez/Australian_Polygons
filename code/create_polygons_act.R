@@ -3,7 +3,7 @@
 if(!require(pacman)) install.packages("pacman", repos = "http://cran.us.r-project.org")
 if(!require(absmapsdata)) devtools::install_github("wfmackey/absmapsdata")
 
-devotools::install_github("wfmackey/absmaps")
+devtools::install_github("wfmackey/absmaps")
 #use pacman to install all other packages
 pacman::p_load("tidyverse","rgdal","sf","lwgeom","spdep","geojsonsf","rgeos","smoothr",
                "rvest","xml2","stringi","units","absmapsdata")
@@ -18,7 +18,7 @@ area_tolerance3 <-set_units(0.3,1)
 
 State <-"ACT"
 State_folder <- "act/"
-State_poa <-  as.character(2600:2618,2900:2920,2620)
+State_poa <-  as.character(c(2600:2618,2900:2920,2620))
 
 
 rm(nt_lgas_list,wiki_page)
@@ -180,7 +180,7 @@ loc_lga_poa_a <-  loc_lga %>%
 ###join and clean up
 
 #loc_lga_poa <- rbind(loc_lga_poa_a,loc_lga_poa_b)
-loc_lga_poa <-loc_lga_poa_a
+loc_lga_poa <-loc_lga_poa_a %>% select(-ROW_ID) %>% mutate(ABB_NAME=toupper(LGA))
 
 rm(list=ls()[! ls() %in% c("loc_lga_poa","shapes","area_tolerance","area_tolerance2","State_folder")])
 
