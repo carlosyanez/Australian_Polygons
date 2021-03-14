@@ -25,12 +25,15 @@ clean_lga <-function(df){
                   LGA=str_remove(LGA,"\\)"),
                   LGA=str_remove(LGA,"\\(Uninc\\)"),
                   LGA=str_remove(LGA,"Uninc"),
+                  LGA=str_remove(LGA,"Regional"),
                   LGA=str_remove(LGA,"Region"),
                   LGA=str_remove(LGA,"Municipality"),
                   LGA=str_remove(LGA,"Municipal"),
                   LGA=str_remove(LGA,"\\(East Arm\\)"),
                   LGA=str_remove(LGA,"The The Of"),
                   LGA=str_remove(LGA,"The Of"),
+                  LGA=str_remove(LGA,"\b(al)\b"),
+                  LGA=str_remove(LGA,"Aboriginal"),
                   LGA=str_squish(LGA),
                   LGA=str_trim(LGA),
                   LGA=str_replace(LGA,"Un-Incorporated (Nhulunbuy) Area","Nhulunbuy"),
@@ -41,10 +44,15 @@ clean_lga <-function(df){
                   LGA=str_replace(LGA,"Queanbeyan-Palerang","Queanbeyan–Palerang"),
                   LGA=str_replace(LGA,"The The Of Kiama","Kiama"),
                   LGA=str_replace(LGA,"The Of Sydney","Sydney"),
+                  LGA=str_replace(LGA,"Weipa Town","Weipa"),
+                  LGA=str_replace(LGA,"Blackall Tambo","Blackall-Tambo"),
                   LGA=if_else(str_length(LGA)==0,"Unincorporated",LGA)
                   )
 
 }
+
+
+
 
 
 
