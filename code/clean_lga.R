@@ -39,7 +39,7 @@ clean_lga <-function(df){
                   LGA=str_remove(LGA,"The Dc"),
                   LGA=str_remove(LGA,"Dc"),
                   LGA=str_remove_all(LGA,"The"),
-                  LGA=str_remove(LGA,"\b(Town)\b"),
+                  LGA=str_remove(LGA,"Town"),
                   LGA=str_remove_all(LGA,"Of"),
                   LGA=str_remove_all(LGA,"Uia"),
                   LGA=str_squish(LGA),
@@ -58,6 +58,17 @@ clean_lga <-function(df){
                   LGA=str_replace(LGA,"Norwood Payneham And St Peters","Norwood Payneham & St Peters"),
                   LGA=str_replace(LGA,"Riverland","Riverland UIA"),
                   LGA=str_replace(LGA,"Pastoral","Outback Communities Authority"),
+                  LGA=str_replace(LGA,"Bassendean Town","Bassendean"),
+                  LGA=str_replace(LGA,"–","-"),
+                  LGA=str_replace(LGA,"Wyndham East Kimberley","Wyndham-East Kimberley"),
+                  LGA=str_replace(LGA,"Derby West Kimberley","Derby-West Kimberley"),
+                  LGA=str_replace(LGA,"Kalgoorlie Boulder","Kalgoorlie-Boulder"),
+                  LGA=str_replace(LGA,"Augusta Margaret River","Augusta-Margaret River"),
+                  LGA=str_replace(LGA,"Bridgetown Greenbushes","Bridgetown-Greenbushes"),
+                  LGA=str_replace(LGA,"Serpentine Jarrahdale","Serpentine-Jarrahdale"),
+                  LGA=str_replace(LGA,"Wongan Ballidu","Wongan-Ballidu"),
+                  LGA=str_replace(LGA,"Donnybrook Balingup","Donnybrook-Balingup"),
+                  LGA=str_replace(LGA,"Broomehill Tambellup","Broomehill-Tambellup"),
                   LGA=if_else(str_length(LGA)==0,"Unincorporated",LGA)
                   )
 
