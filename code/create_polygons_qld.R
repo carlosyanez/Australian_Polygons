@@ -251,7 +251,7 @@ saveRDS(loc_lga_poa,str_c(State_folder,"lga_loc_poa.rds"))
 
 #get sa1 
 
-sa1 <- sa12016 %>% filter(state_code_2016==1)
+sa1 <- sa12016 %>% filter(state_name_2016=="Queensland")
 
 sa1_poa_loc_lga <- map_df(1:nrow(loc_lga_poa),function(x,lga_loc_polygon,poa_polygon){
   #message(x)

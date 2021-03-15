@@ -263,7 +263,7 @@ saveRDS(loc_lga_poa,str_c(State_folder,"lga_loc_poa.rds"))
 
 #get sa1 
 
-sa1 <- sa12016 %>% filter(state_code_2016==1)
+sa1 <- sa12016 %>% filter(state_name_2016=="Western Australia")
 
 sa1_poa_loc_lga <- map_df(1:nrow(loc_lga_poa),function(x,lga_loc_polygon,poa_polygon){
   #meswage(x)
@@ -288,8 +288,8 @@ sa1_poa_loc_lga_table <- sa1_poa_loc_lga %>%
   as.data.frame()  %>% 
   select(-geometry) %>%
   select(POA_CODE16,LOC_PID,LGA_PID,LOCALITY,LGA,State,
-         sa1_main_2016,sa1_7dig_2016,wa2_main_2016,wa2_5dig_2016,wa2_name_2016,wa3_code_2016,
-         wa3_name_2016,wa4_code_2016,wa4_name_2016,gcc_code_2016,gcc_name_2016,state_code_2016,AREA) %>%
+         sa1_main_2016,sa1_7dig_2016,sa2_main_2016,sa2_5dig_2016,sa2_name_2016,sa3_code_2016,
+         sa3_name_2016,sa4_code_2016,sa4_name_2016,gcc_code_2016,gcc_name_2016,state_code_2016,AREA) %>%
   group_by(sa1_main_2016) %>%
   slice_max(order_by=AREA,n=1) %>%
   ungroup() %>%
