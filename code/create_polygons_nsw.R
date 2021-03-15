@@ -115,15 +115,50 @@ loc_lga_1 <- map_df(1:nrow(shapes$LGA),function(x,suburb_polygon,lga_polygon){
                       
 
 loc_count <- as.data.frame(loc_lga_1) %>% select(-geometry) %>% 
-             group_by(LOC_PID,LOCALITY) %>%
-             summarise(n=n(),relevant=sum(RELEVANT),.groups="drop") %>%
+             mutate(uninc_flag=if_else(LGA=="Unincorporated",1,0)) %>%
+             group_by(LOC_PID,LOCALITY)%>%
+             summarise(n=n(),relevant=sum(RELEVANT),uninc=sum(uninc_flag),.groups="drop") %>%
              mutate(single_rel=(relevant==1),
-                    diff=n-relevant) %>%
+                    diff=n-relevant,
+                    uninc_diff=n-uninc) 
+
+uninc_count <- loc_count %>% 
+                filter(uninc>0 & uninc_diff>0) %>%
+                select(LOC_PID) %>% mutate(uf=TRUE)
+
+unincorp_corr <- as.data.frame(loc_lga_1) %>% filter(LOC_PID %in% uninc_count$LOC_PID) %>%
+                filter(!(LGA=="Unincorporated")) %>%
+                select(LOC_PID,LGA_PID,LGA) %>% unique(.) %>%
+                rename(newLGA_PID=LGA_PID,newLGA=LGA)
+
+loc_lga_1b <- loc_lga_1 %>% filter((LOC_PID %in% unincorp_corr$LOC_PID)) %>%
+                 left_join(unincorp_corr,by="LOC_PID") %>%
+                        filter(!is.na(newLGA_PID)) %>%
+                        select(-LGA,-LGA_PID) %>%
+                        rename(LGA=newLGA,LGA_PID=newLGA_PID) %>%
+                        group_by(LOC_PID,LGA_PID,LGA,LOCALITY) %>%
+                        summarise(.groups="drop") %>% 
+                        mutate(ROW_ID=row_number()) %>%
+                        mutate(AREA=st_area(.), RELEVANT=(AREA>area_tolerance))
+                        
+
+loc_lga_1 <- rbind(loc_lga_1 %>% filter(!(LOC_PID %in% unincorp_corr$LOC_PID)),
+                   loc_lga_1b)
+
+rm(loc_lga_1b)
+
+
+loc_count <- as.data.frame(loc_lga_1) %>% select(-geometry) %>% 
+  mutate(uninc_flag=if_else(LGA=="Unincorporated",1,0)) %>%
+  group_by(LOC_PID,LOCALITY)%>%
+  summarise(n=n(),relevant=sum(RELEVANT),uninc=sum(uninc_flag),.groups="drop") %>%
+  mutate(single_rel=(relevant==1),
+         diff=n-relevant,
+         uninc_diff=n-uninc) %>%
              mutate(group=if_else(single_rel & (diff==0), "a","c"),    #ready to use
                     group=if_else(single_rel & !(diff==0), "b",group), #merge small pieces
                     group=if_else(!single_rel & (diff==0), "a",group)) #ready to use  # group c needs work
                    
-
 
 loc_lga_1 <- loc_lga_1 %>% left_join(loc_count %>% select(LOC_PID,group),by="LOC_PID")
 
@@ -164,7 +199,7 @@ loc_lga <- loc_lga %>%
   mutate(RELEVANT=(AREA>area_tolerance)) %>%
   filter(RELEVANT) %>%
   group_by(LOC_PID,LGA_PID,LGA,LOCALITY,State.Region,ABB_NAME,Metro.Region,State) %>%
-  summarise(.groups="drop")    
+  summarise(.groups="drop") 
 
 plot(loc_lga %>% filter(grepl("Riverina",State.Region)) %>% select(LOCALITY))
 
@@ -245,7 +280,10 @@ loc_lga_poa_a <-  loc_lga %>%
 
 ###join and clean up
 #loc_lga_poa <- rbind(loc_lga_poa_a,loc_lga_poa_b)
-loc_lga_poa <-loc_lga_poa_a
+loc_lga_poa <-loc_lga_poa_a %>%
+              st_collection_extract("POLYGON")
+
+
 loc_lga_poa %>% filter(POA_CODE16=="none") 
 
 rm(list=ls()[! ls() %in% c("loc_lga_poa","shapes","area_tolerance","area_tolerance2","State_folder","missing_poas")])
@@ -294,6 +332,9 @@ b<-sa1 %>% filter(!(sa1_main_2016 %in% a$sa1_main_2016))
 
 plot(b)
 write_csv(sa1_poa_loc_lga_table,str_c(State_folder,"sa1_table.csv"))
+
+
+###DON'T RUN
 
 ## Re-aggregate LGAs
 ##colnames(loc_lga_poa %>% select(-POA_CODE16,-LOC_PID,-LOCALITY)
