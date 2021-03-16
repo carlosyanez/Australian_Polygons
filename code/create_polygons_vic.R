@@ -264,7 +264,7 @@ loc_lga_poa_a <-  loc_lga %>%
 
 ## special areas in missing_poas
 
-loc_lga_remnant <- loc_lga %>% filter(LOC_PID %in% double_pas_loc)
+loc_lga_remnant <- loc_lga %>% filter(!(LOC_PID %in% loc_lga_poa_a$LOC_PID))
 poa_remnant <- shapes$POA %>% filter(POA_CODE16 %in% double_poas)
 
 loc_lga_poa_b <- st_intersection(loc_lga_remnant,poa_remnant) %>% select(colnames(loc_lga_poa_a))
