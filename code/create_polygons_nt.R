@@ -45,7 +45,8 @@ uninc_areas <- tribble(~LGA,~State.Region,
                        "Marrakai-Dougla","Katherine",
                        "Cox-Daly","Katherine",
                        "Darwin Waterfront Precinct","Greater Darwin",
-                       "Elrundie","Greater Darwin"
+                       "Elrundie","Greater Darwin",
+                       "Northern Territory Rates Act","Greater Darwin"
 ) %>% 
   mutate(Metro.Region="Unincorporated",ABB_NAME=toupper(LGA))
 

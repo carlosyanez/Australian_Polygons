@@ -34,6 +34,7 @@ for(i in states){
 }
 
 locations.table <- bind_rows(locations.table.list)
+saveRDS(locations.table,"locations.rds")
 save(locations.table,file=str_c(aussie_file_data,"locations.rda"))
 
 
