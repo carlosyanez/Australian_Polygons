@@ -1,4 +1,6 @@
 # aussiemaps.polygon
+<img src="https://github.com/carlosyanez/aussiemaps/raw/master/img/hexSticker.png" width = "175" height = "200" align="right" />
+
 
 Data collection and preparation for [aussiemaps.data](https://github.com/carlosyanez/aussiemaps.data) R package.
 
